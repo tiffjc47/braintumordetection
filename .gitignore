@@ -3,3 +3,217 @@
 !pip install matplotlib
 !pip install scikit-learn
 !pip install opencv-python
+
+import os # to work with data subfolders brainTumor & Healthy
+import keras # to build CNN model
+from keras import Sequential
+from keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten, Activation, BatchNormalization
+import numpy as np # array operations
+import pandas as pd # data processing
+import cv2 # image operation
+from PIL import Image # PIL = python image library
+import matplotlib.pyplot as plt 
+from matplotlib.pyplot import imshow # to show images
+from sklearn.model_selection import train_test_split # to divide data 80% training and 20% testing
+from sklearn.preprocessing import OneHotEncoder # to assign binary value to brainTumor & Healthy
+
+# Assign 0 to brainTumor and 1 to Healthy
+encoder = OneHotEncoder()
+encoder.fit([[0], [1]])
+
+# add the brainTumor images first
+
+data = []
+paths = []
+result = []
+
+# conduct tree search of files
+# r root
+# d directories 
+# f files
+for r, d, f in os.walk(r"/Users/tiffjchoi/Desktop/AI680_Project/BrainScanDataset/brainTumor"):
+    # for every image under brainTumor folder
+    for file in f:
+        # if it is in the following formats, assign each image/file to the brainTumor folder
+        if 'jpg' or 'jpeg' or 'tif' or 'png' in file:
+            # store these assignments into the paths list
+            paths.append(os.path.join(r, file))
+# iterate through each path            
+for path in paths:
+    # read the image using PIL - Python Image Library
+    img = Image.open(path)
+    img = img.resize((128,128)) # resize the images to 128x128 pixels to standardize images
+    img = np.array(img) # convert images to arrays
+    if(img.shape == (128,128,3)): # 128x128 pixels & 3 channels (RBG format)
+        # add the numpy array form of images to the data list
+        data.append(np.array(img))
+        # add the output/label in an array form to the result list
+        result.append(encoder.transform([[0]]).toarray())
+
+# Let's load a random brainTumor image and see the scale of a resized image
+import random
+path = r"/Users/tiffjchoi/Desktop/AI680_Project/BrainScanDataset/brainTumor"
+files = os.listdir(path)
+randomFile = random.choice(files)
+img = Image.open(path + "/" + randomFile)
+img = img.resize((128,128))
+plt.imshow(img)
+plt.show()
+
+# Let's load this same image in numpy array form to see an example of what is being added to our data variable
+array_img = Image.open(path + "/" + randomFile)
+array_img = np.array(array_img)
+print(randomFile, " is the file name and the array form of this image is", array_img)
+
+# now add the Healthy images
+# don't have to create data and label list again because they contain info for ALL images
+
+paths = []
+
+for r, d, f in os.walk(r"/Users/tiffjchoi/Desktop/AI680_Project/BrainScanDataset/Healthy"):
+    # for every image under Healthy folder
+    for file in f:
+        # if it is in the following formats, assign each image/file to the Healthy folder
+        if 'jpg' or 'jpeg' or 'tif' or 'png' in file:
+            # store these assignments into the paths list
+            paths.append(os.path.join(r, file))
+# iterate through each path            
+for path in paths:
+    # read the image using PIL - Python Image Library
+    img = Image.open(path)
+    img = img.resize((128,128)) # resize the images to 128x128 pixels to standardize images
+    img = np.array(img) # convert images to arrays
+    if(img.shape == (128,128,3)): # 128x128 pixels & 3 channels (RBG format)
+        # add the numpy array form of images to the data list
+        data.append(np.array(img))
+        # add the output/label in an array form to the result list
+        result.append(encoder.transform([[1]]).toarray())
+
+# Let's load a random Healthy image
+import random
+path = r"/Users/tiffjchoi/Desktop/AI680_Project/BrainScanDataset/Healthy"
+files = os.listdir(path)
+randomFile = random.choice(files)
+img = Image.open(path + "/" + randomFile)
+img = img.resize((128,128))
+plt.imshow(img)
+plt.show()
+
+# Let's load this same image in numpy array form to see an example of what is being added to our data variable
+array_img = Image.open(path + "/" + randomFile)
+array_img = np.array(array_img)
+print(randomFile, " is the file name and the array form of this image is", array_img)
+
+# creating multi-dimensional array by converting list of arrays (data) into an array
+data = np.array(data)
+data.shape
+
+# creating a multi-dimensional array by converting list of arrays (outputs/labels) into an array
+result = np.array(result)
+# result should only have 2 pieces of info: # of files, and the binary label (0 or 1)
+result = result.reshape(7352,2)
+
+# Split x(independent variable = image) and y(dependent variable = classification AKA 1 or 0 AKA Healthy or brainTumor)
+# Shuffle=True to randomize order of images, makes for better learning
+# Random_state set to an integer -> train_test_split will return same results for each execution
+x_train,x_test,y_train,y_test = train_test_split(data, result, test_size=0.2, shuffle=True, random_state=0)
+
+# Create a sequential model
+model = Sequential()
+
+# Start with the convolutional layer
+# Use 32 filters
+    # Filters "walk through" the input image and map it one by one to learn different portions of that image, like wearing different kinds of glasses and examining a painting
+# Kernel size defines the size of the filter "window" that "walks through" the image
+# Setting padding to same keeps the input and output to be the same volume
+model.add(Conv2D(32, kernel_size=(2, 2), input_shape=(128, 128, 3), padding = 'Same'))
+# Activation layer, usually between convolutional and maxpooling layers
+    # Helps to prevent exponential growth in the computation required to operate the neural network
+model.add(Conv2D(32, kernel_size=(2, 2),  activation ='relu', padding = 'Same'))
+
+# Batch normalization described in notes
+model.add(BatchNormalization())
+# Pool size 2,2 sets the "window" size to "walk through" the image
+# Max pooling returns the maximum value of each 2x2 array examined
+model.add(MaxPooling2D(pool_size=(2, 2)))
+# Dropout regularization helps prevent overfitting by randomly "dropping out" or "turning off" a node in a layer, so that the other nodes remain independent 
+    # Dropout probability set to 25%
+model.add(Dropout(0.25))
+
+# Increase the number of filters for the next layers
+model.add(Conv2D(64, kernel_size = (2,2), activation ='relu', padding = 'Same'))
+model.add(Conv2D(64, kernel_size = (2,2), activation ='relu', padding = 'Same'))
+
+
+model.add(BatchNormalization())
+# Stride is how far the pool "window" moves through the image
+model.add(MaxPooling2D(pool_size=(2,2), strides=(2,2)))
+model.add(Dropout(0.25))
+
+# Dense layer requires a one dimensional dataset, so flatten the data
+model.add(Flatten())
+
+# Dense layer is a "deeply connected layer" because every neuron will receive input from all neurons of the previous layer
+    # Creating 512 neurons for this layer
+model.add(Dense(512, activation='relu'))
+    # Amount of neurons can be reduced to force "noisy" information to be given up and to only keep the most important features 
+model.add(Dense(64, activation='relu'))
+    # Dropout probability set to 50%
+model.add(Dropout(0.5))
+# For the final layer, use softmax function for the activation 
+    # Softmax converts vectors into a probability distribution
+model.add(Dense(2, activation='softmax'))
+
+# Last step! Compile our model
+# Loss function will find errors/deviations in the learning process
+# Optimizer reduces overall loss to improve accuracy by adjusting weights in connections between nodes as well as learning rates
+model.compile(loss = "categorical_crossentropy", optimizer='Adamax', metrics=['accuracy'])
+
+# Save and name our model 
+model.save("cnnModel")
+
+# Return a summary of our model
+print(model.summary())
+
+model.fit(x_train, y_train, epochs = 9, batch_size = 32, verbose = 1,validation_data = (x_test, y_test))
+
+PREDICTIONS = ["tumorous brain scan", "healthy brain scan"]
+# pull a random healthy  brainscan
+path = r"/Users/tiffjchoi/Desktop/AI680_Project/BrainScanDataset/Healthy"
+files = os.listdir(path)
+randomFile = random.choice(files)
+healthy_img = Image.open(path + "/" + randomFile)
+
+# show the image
+imshow(healthy_img)
+
+# process the image to be ready for the model: resize, convert to array, reshape the input to have 4 parameters (1 image, 128x128 pixels, 3 channels-RGB)
+healthy_image_array = np.array(healthy_img.resize((128,128)))
+healthy_image_array = healthy_image_array.reshape(1,128,128,3)
+
+# run the model on the batch, our single random healthy image in the form of an array
+prediction = model.predict_on_batch(healthy_image_array)
+
+# np.argmax chooses the maximum value of the array. If 1 = healthy, 0 = tumorous
+# we indexed the PREDICTIONS with the result of np.argmax so that we can return a phrase rather than a number
+prediction = PREDICTIONS[np.argmax(prediction)]
+print(prediction)
+
+PREDICTIONS = ["tumorous brain scan", "healthy brain scan"]
+
+path = r"/Users/tiffjchoi/Desktop/AI680_Project/BrainScanDataset/brainTumor"
+files = os.listdir(path)
+randomFile = random.choice(files)
+tumor_img = Image.open(path + "/" + randomFile)
+
+imshow(tumor_img)
+
+tumor_img_array = np.array(tumor_img.resize((128,128)))
+
+tumor_img_array = tumor_img_array.reshape(1,128,128,3)
+
+prediction = model.predict_on_batch(tumor_img_array)
+prediction = PREDICTIONS[np.argmax(prediction)]
+
+print(prediction)
+
